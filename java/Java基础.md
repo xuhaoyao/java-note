@@ -1747,3 +1747,499 @@ public class StringTest {
 ![img](https://images2015.cnblogs.com/blog/690102/201607/690102-20160729105042231-937633681.jpg)
 
 ![img](https://images2015.cnblogs.com/blog/690102/201607/690102-20160729100445981-600538221.jpg)
+
+
+
+## 九、泛型
+
+### **1.泛型方法与可变参数**
+
+```java
+public class StringTest {
+
+    public static <T> void fun(T... objs){
+        for (T obj : objs) {
+            System.out.println(obj);
+        }
+    }
+
+
+    public static void main(String[] args) {
+        fun(1,2,"3","4",new Date());  //可以正确运行
+    }
+}
+
+```
+
+
+
+### **2.泛型与静态方法**
+
+```java
+public class Pair<T> {
+    private T first;
+    private T last;
+    public Pair(T first, T last) {
+        this.first = first;
+        this.last = last;
+    }
+    public T getFirst() { ... }
+    public T getLast() { ... }
+
+    // 静态泛型方法应该使用其他类型区分:
+    public static <K> Pair<K> create(K first, K last) {
+        return new Pair<K>(first, last);
+    }
+}
+```
+
+
+
+### **3.擦拭法**
+
+Java语言的泛型实现方式是擦拭法（Type Erasure）。
+
+所谓擦拭法是指，虚拟机对泛型其实一无所知，所有的工作都是编译器做的。
+
+```java
+//还是上面那个Pair,这是虚拟机看到的
+public class Pair {
+    private Object first;
+    private Object last;
+    public Pair(Object first, Object last) {
+        this.first = first;
+        this.last = last;
+    }
+    public Object getFirst() {
+        return first;
+    }
+    public Object getLast() {
+        return last;
+    }
+}
+```
+
+因此，Java使用擦拭法实现泛型，导致了：
+
+- 编译器把类型`<T>`视为`Object`；
+- 编译器根据`<T>`实现安全的强制转型。
+
+使用泛型的时候，我们编写的代码也是编译器看到的代码：
+
+```java
+Pair<String> p = new Pair<>("Hello", "world");
+String first = p.getFirst();
+String last = p.getLast();
+```
+
+而虚拟机执行的代码并没有泛型：
+
+```java
+Pair p = new Pair("Hello", "world");
+String first = (String) p.getFirst();
+String last = (String) p.getLast();
+```
+
+所以，Java的泛型是由编译器在编译时实行的，编译器内部永远把所有类型`T`视为`Object`处理，但是，在需要转型的时候，编译器会根据`T`的类型自动为我们实行安全地强制转型。
+
+
+
+**由擦拭法可以看出泛型的局限:**
+
+**局限一**：`<T>`不能是基本类型，例如`int`，因为实际类型是`Object`，`Object`类型无法持有基本类型：
+
+```
+Pair<int> p = new Pair<>(1, 2); // compile error!
+```
+
+**局限二**：无法取出带泛型的具体的class
+
+```java
+Pair<String> stringPair = new Pair<>("s","d");
+Pair<Integer> integerPair = new Pair<>(1,2);
+Class c1 = stringPair.getClass();
+Class c2 = integerPair.getClass();
+System.out.println(c1 == c2);  //true
+System.out.println(c1==Pair.class); // true
+```
+
+因为`T`是`Object`，我们对`Pair<String>`和`Pair<Integer>`类型获取`Class`时，获取到的是同一个`Class`，也就是`Pair`类的`Class`。
+
+换句话说，所有泛型实例，无论`T`的类型是什么，`getClass()`返回同一个`Class`实例，因为编译后它们全部都是`Pair<Object>`。
+
+**局限三：**无法判断带泛型的类型
+
+```java
+Pair<String> stringPair = new Pair<>("s","d");
+if(stringPair instanceof Pair<String>){  //Illegal generic type for instanceof
+
+}
+```
+
+原因和前面一样，并不存在`Pair<String>.class`，而是只有唯一的`Pair.class`。
+
+**局限四**：不能实例化`T`类型：
+
+```java
+public class Pair<T> {
+    private T first;
+    private T last;
+    public Pair() {
+        // Compile error: Type parameter 'T' cannot be instantiated directly
+        first = new T();
+        last = new T();
+    }
+}
+```
+
+要实例化`T`类型，我们必须借助额外的`Class<T>`参数：
+
+```java
+public class Pair<T> {
+    private T first;
+    private T last;
+    public Pair(Class<T> clazz) {
+        first = clazz.newInstance();
+        last = clazz.newInstance();
+    }
+}
+```
+
+上述代码借助`Class<T>`参数并通过反射来实例化`T`类型，使用的时候，也必须传入`Class<T>`。例如：
+
+```java
+Pair<String> pair = new Pair<>(String.class);
+```
+
+因为传入了`Class<String>`的实例，所以我们借助`String.class`就可以实例化`String`类型。
+
+
+
+**不恰当的重写方法**
+
+有些时候，一个看似正确定义的方法会无法通过编译。例如：
+
+```java
+public class Pair<T> {
+    public boolean equals(T t) {  //// both methods have same erasure, yet neither overrides the other
+        return this == t;
+    }
+}
+```
+
+这是因为，定义的`equals(T t)`方法实际上会被擦拭成`equals(Object t)`，而这个方法是继承自`Object`的，编译器会阻止一个实际上会变成重写的泛型方法定义。
+
+换个方法名，避开与`Object.equals(Object)`的冲突就可以成功编译：
+
+```java
+public class Pair<T> {
+    public boolean same(T t) {
+        return this == t;
+    }
+}
+```
+
+
+
+**泛型继承**
+
+```java
+class IntPair extends Pair<Integer>{
+
+    public IntPair(Integer first, Integer last) {
+        super(first, last);
+    }
+}
+```
+
+在父类是泛型类型的情况下，编译器就必须把类型`T`（对`IntPair`来说，也就是`Integer`类型）保存到子类的class文件中，不然编译器就不知道`IntPair`只能存取`Integer`这种类型。
+
+在继承了泛型类型的情况下，子类可以获取父类的泛型类型。例如：`IntPair`可以获取到父类的泛型类型`Integer`
+
+```java
+Class<IntPair> clazz = IntPair.class;
+Type t = clazz.getGenericSuperclass();
+if (t instanceof ParameterizedType) {
+    ParameterizedType pt = (ParameterizedType) t;
+    Type[] types = pt.getActualTypeArguments(); // 可能有多个泛型类型
+    Type firstType = types[0]; // 取第一个泛型类型
+    Class<?> typeClass = (Class<?>) firstType;
+    System.out.println(typeClass); // class java.lang.Integer
+}
+```
+
+
+
+
+
+擦拭法决定了泛型`<T>`：
+
+- 不能是基本类型，例如：`int`；
+- 不能获取带泛型类型的`Class`，例如：`Pair<String>.class`；
+- 不能判断带泛型类型的类型，例如：`x instanceof Pair<String>`；
+- 不能实例化`T`类型，例如：`new T()`。
+
+泛型方法要防止重复定义方法，例如：`public boolean equals(T obj)`；
+
+子类可以获取父类的泛型类型`<T>`。
+
+
+
+### **4.泛型的继承关系**
+
+```java
+// 创建ArrayList<Integer>类型：
+ArrayList<Integer> integerList = new ArrayList<Integer>();
+// 添加一个Integer：
+integerList.add(new Integer(123));
+// “向上转型”为ArrayList<Number>：
+ArrayList<Number> numberList = integerList; //不允许
+// 添加一个Float，因为Float也是Number：
+numberList.add(new Float(12.34));
+// 从ArrayList<Integer>获取索引为1的元素（即添加的Float）：
+Integer n = integerList.get(1); // ClassCastException!
+```
+
+- ArrayList<Integer>和ArrayList<Number>两者完全没有继承关系。
+- 泛型的继承关系：可以把`ArrayList<Integer>`向上转型为`List<Integer>`（`T`不能变！），但不能把`ArrayList<Integer>`向上转型为`ArrayList<Number>`（`T`不能变成父类）。
+
+
+
+### 5.extends通配符（上边界通配符）
+
+```java
+class PairHelper{
+    public static int add(Pair<Number> pair){
+        return pair.getFirst().intValue() + pair.getLast().intValue();
+    }
+}
+
+public class Test01 {
+    public static void main(String[] args) {
+        Pair<Integer> pair = new Pair<>(1,2);
+        System.out.println(PairHelper.add(pair));  //编译报错
+    }
+}
+```
+
+这时候就需要引入上边界通配符
+
+```java
+class PairHelper{
+    public static int add(Pair<? extends Number> pair){
+        return pair.getFirst().intValue() + pair.getLast().intValue();
+    }
+}
+//然后刚才的demo就可以运行了
+```
+
+如果我们考察对`Pair<? extends Number>`类型调用`getFirst()`方法，实际的方法签名变成了：
+
+```java
+<? extends Number> getFirst();
+```
+
+即返回值是`Number`或`Number`的子类，因此，可以安全赋值给`Number`类型的变量：
+
+```java
+Number x = p.getFirst();
+```
+
+然后，我们不可预测实际类型就是`Integer`，根据向下转型，如果传入了`new Pair<Integer>(1,2)`,下面的代码是无法通过编译的：
+
+```java
+Long last = (Long)pair.getLast(); //java.lang.ClassCastException
+```
+
+这是因为实际的返回类型可能是`Integer`，也可能是`Double`或者其他类型，编译器只能确定类型一定是`Number`的子类（包括`Number`类型本身），但具体类型无法确定。
+
+再看看此时`Pair<? extends Number> pair`的set方法
+
+```java
+    public static int add(Pair<? extends Number> pair){
+        Number first = pair.getFirst();
+        Number last = pair.getLast();
+        pair.setFirst(first);  //'setFirst(capture<? extends java.lang.Number>)' cannot be applied to '(java.lang.Number)'
+        return pair.getFirst().intValue() + pair.getLast().intValue();
+    }
+```
+
+编译错误发生在`p.setFirst()`传入的参数是`Integer`类型。既然`p`的定义是`Pair<? extends Number>`，那么`setFirst(? extends Number)`为什么不能传入`Integer`？
+
+原因还在于擦拭法。如果我们传入的`p`是`Pair<Double>`，显然它满足参数定义`Pair<? extends Number>`，然而，`Pair<Double>`的`setFirst()`显然无法接受`Integer`类型。
+
+这就是`<? extends Number>`通配符的一个重要限制：方法参数签名`setFirst(? extends Number)`无法传递任何`Number`的子类型给`setFirst(? extends Number)`。
+
+
+
+#### **extends通配符的作用**
+
+**1.对于使用了extends通配符的变量进行只读操作**
+
+如果我们考察Java标准库的`java.util.List<T>`接口，它实现的是一个类似“可变数组”的列表，主要功能包括：
+
+```java
+public interface List<T> {
+    int size(); // 获取个数
+    T get(int index); // 根据索引获取指定元素
+    void add(T t); // 添加一个新元素
+    void remove(T t); // 删除一个已有元素
+}
+```
+
+现在，让我们定义一个方法来处理列表的每个元素：
+
+```java
+int sumOfList(List<? extends Integer> list) {
+    int sum = 0;
+    for (int i=0; i<list.size(); i++) {
+        Integer n = list.get(i);
+        sum = sum + n;
+    }
+    return sum;
+}
+```
+
+为什么我们定义的方法参数类型是`List<? extends Integer>`而不是`List<Integer>`？从方法内部代码看，传入`List<? extends Integer>`或者`List<Integer>`是完全一样的，但是，注意到`List<? extends Integer>`的限制：
+
+- 允许调用`get()`方法获取`Integer`的引用；
+- 不允许调用`set(? extends Integer)`方法并传入任何`Integer`的引用（`null`除外）。
+
+因此，方法参数类型`List<? extends Integer>`表明了该方法内部只会读取`List`的元素，不会修改`List`的元素（因为无法调用`add(? extends Integer)`、`remove(? extends Integer)`这些方法。换句话说，这是一个对参数`List<? extends Integer>`进行只读的方法（恶意调用`set(null)`除外）。
+
+
+
+**2.使用extends限定T类型**
+
+在定义泛型类型`Pair<T>`的时候，也可以使用`extends`通配符来限定`T`的类型：
+
+```java
+public class Pair<T extends Number> { ... }
+```
+
+现在，我们只能定义：
+
+```java
+Pair<Number> p1 = null;
+Pair<Integer> p2 = new Pair<>(1, 2);
+Pair<Double> p3 = null;
+```
+
+因为`Number`、`Integer`和`Double`都符合`<T extends Number>`。
+
+非`Number`类型将无法通过编译：
+
+```java
+Pair<String> p1 = null; // compile error!
+Pair<Object> p2 = null; // compile error!
+```
+
+因为`String`、`Object`都不符合`<T extends Number>`，因为它们不是`Number`类型或`Number`的子类。
+
+
+
+#### 小结
+
+使用类似`<? extends Number>`通配符作为方法参数时表示：
+
+- 方法内部可以调用获取`Number`引用的方法，例如：`Number n = obj.getFirst();`；
+- 方法内部无法调用传入`Number`引用的方法（`null`除外），例如：`obj.setFirst(Number n);`。
+- 遵循向上转型和向下转型的规则
+
+即一句话总结：使用`extends`通配符表示可以读，不能写。
+
+使用类似`<T extends Number>`定义泛型类时表示：
+
+- 泛型类型限定为`Number`以及`Number`的子类。
+- 类型转换不当可能产生`java.lang.ClassCastException`
+
+
+
+### 6.super通配符
+
+使用`<? super Integer>`通配符表示：
+
+- 允许调用`set(? super Integer)`方法传入`Integer`的引用；
+- 不允许调用`get()`方法获得`Integer`的引用。
+- 遵循向上转型和向下转型的规则
+
+唯一例外是可以获取`Object`的引用：`Object o = p.getFirst()`。
+
+换句话说，使用`<? super Integer>`通配符作为方法参数，表示方法内部代码对于参数只能写，不能读。
+
+
+
+### 7.对比extends和super通配符
+
+我们再回顾一下`extends`通配符。作为方法参数，`<? extends T>`类型和`<? super T>`类型的区别在于：
+
+- `<? extends T>`允许调用读方法`T get()`获取`T`的引用，但不允许调用写方法`set(T)`传入`T`的引用（传入`null`除外）；
+- `<? super T>`允许调用写方法`set(T)`传入`T`的引用，但不允许调用读方法`T get()`获取`T`的引用（获取`Object`除外）。
+
+一个是允许读不允许写，另一个是允许写不允许读。
+
+
+
+### 8.PECS原则
+
+何时使用`extends`，何时使用`super`？为了便于记忆，我们可以用PECS原则：Producer Extends Consumer Super。
+
+即：如果需要返回`T`，它是生产者（Producer），要使用`extends`通配符；如果需要写入`T`，它是消费者（Consumer），要使用`super`通配符。
+
+```java
+public class Collections {
+    public static <T> void copy(List<? super T> dest, List<? extends T> src) {
+        for (int i=0; i<src.size(); i++) {
+            T t = src.get(i); // src是producer
+            dest.add(t); // dest是consumer
+        }
+    }
+}
+```
+
+这个`copy()`方法的定义就完美地展示了`extends`和`super`的意图：
+
+- `copy()`方法内部不会读取`dest`，因为不能调用`dest.get()`来获取`T`的引用；
+
+- `copy()`方法内部也不会修改`src`，因为不能调用`src.add(T)`。
+
+- 由于dest中的元素是T或者T的父类，src中的元素是T或者T的子类,将src的元素生产出来，给dest消费,将子类赋值给父类，满足向上转型。
+
+  ```java
+  // copy List<Integer> to List<Number> ok:  向上转型成功
+  List<Number> numList = ...;
+  List<Integer> intList = ...;
+  Collections.copy(numList, intList);
+  
+  // ERROR: cannot copy List<Number> to List<Integer>: 向下转型失败
+  Collections.copy(intList, numList);
+  ```
+
+
+
+### 9.谨慎使用泛型可变参数
+
+```java
+public static <T> T[] asArray(T... objs){
+    return objs;
+}
+
+public static <K> K[] pickTwo(K k1, K k2 ,K k3){
+    return asArray(k1,k2);
+}
+
+public static void main(String[] args) {
+    String[] arr = asArray("a","b","c");
+    System.out.println(Arrays.toString(arr));
+
+    //java.lang.ClassCastException: [Ljava.lang.Object; cannot be cast to [Ljava.lang.String;
+    String[] arr1 = pickTwo("a","b","c");
+    System.out.println(Arrays.toString(arr1));
+}
+```
+
+```
+根据擦拭法,传给pickTwo的三个参数是Object,Object,Object,此时将前两个传给asArray方法,入参T的类型
+    就被认定为是Object,因此返回了Object[],即 String[] arr1 = (Object[])pickTwo("a","b","c");
+因此报错
+```
