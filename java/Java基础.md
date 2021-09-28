@@ -995,6 +995,8 @@ public final class Objects{
 
 ### hashCode()
 
+**hashCode**返回的是对象的内存地址的整数值，不同对象的内存地址都不相同，因此hashCode也不同，为了让我们觉得等价的对象hashCode要相同，那么我们就必须重写这个方法
+
 hashCode() 返回哈希值，而 equals() 是用来判断两个对象是否等价。等价的两个对象散列值一定相同，但是散列值相同的两个对象不一定等价，这是因为计算哈希值具有随机性，两个值不同的对象可能计算出相同的哈希值。
 
 **在覆盖 equals() 方法时应当总是覆盖 hashCode() 方法，保证等价的两个对象哈希值也相等。**
@@ -1006,6 +1008,7 @@ HashSet 和 HashMap 等集合类使用了 hashCode() 方法来计算对象应该
 ```java
 Test test1 = new Test(2,"a");
 Test test2 = new Test(2,"a");
+//test1和test2是我们觉得等价的两个对象
 Set<Test> set = new HashSet<>();
 set.add(test1);
 set.add(test2);
@@ -2238,7 +2241,7 @@ public static void main(String[] args) {
 }
 ```
 
-```
+```java
 根据擦拭法,传给pickTwo的三个参数是Object,Object,Object,此时将前两个传给asArray方法,入参T的类型
     就被认定为是Object,因此返回了Object[],即 String[] arr1 = (Object[])pickTwo("a","b","c");
 因此报错
