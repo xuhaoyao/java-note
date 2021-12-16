@@ -107,7 +107,7 @@ private void doubleCapacity() {
 
 扩容过程可以看下面这张图
 
-![image-20211217001658078](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20211217001658078.png)
+![image](https://user-images.githubusercontent.com/56396192/146411375-405c821e-9593-4ddd-a5a3-a4b4aa4d1650.png)
 
 
 
