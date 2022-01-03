@@ -33,11 +33,11 @@
 
 ## 可重入锁
 
-![image-20211020092515440](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20211020092515440.png)
+![image-20211020092515440](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20211020092515440.png)
 
 Synchronized的重入的实现机制
 
-![image-20211020093426926](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20211020093426926.png)
+![image-20211020093426926](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20211020093426926.png)
 
 
 
@@ -51,7 +51,7 @@ LockSupport中的park()和unpark()的作用分别是阻塞线程和解除阻塞�
 
 ### 三种让线程等待和唤醒的方式
 
-![image-20211020094909231](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20211020094909231.png)
+![image-20211020094909231](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20211020094909231.png)
 
 
 
@@ -132,9 +132,9 @@ b.start();
 
 ### 原理说明
 
-![image-20211020102848214](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20211020102848214.png)
+![image-20211020102848214](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20211020102848214.png)
 
-![image-20211020102812952](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20211020102812952.png)
+![image-20211020102812952](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20211020102812952.png)
 
 
 
@@ -184,13 +184,13 @@ b.start();
 
 **是用来构建锁或者其他同步器组件的重量级基础框架及整个JUC体系的基石，通过内置的FIFO队列来完成资源获取线程的排队工作，并通过一个int类型变量表示持有锁的状态**
 
-![image-20211020104925895](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20211020104925895.png)
+![image-20211020104925895](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20211020104925895.png)
 
 ### AQS为什么是JUC内容中最重要的基石
 
-![image-20211020105530977](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20211020105530977.png)
+![image-20211020105530977](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20211020105530977.png)
 
-![image-20211020105515937](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20211020105515937.png)
+![image-20211020105515937](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20211020105515937.png)
 
 
 
@@ -215,7 +215,7 @@ b.start();
 
 如果共享资源被占用，就需要一定的阻塞等待唤醒机制来保证锁分配。这个机制主要用的是CLH队列的变体实现的，将暂时获取不到锁的线程加入到队列中，这个队列就是AQS的抽象表现。它将**请求共享资源的线程封装成队列的结点(Node),通过CAS、自旋以及LockSupport.park()的方式**，维护state变量的状态，使并发达到同步的控制效果
 
-![image-20211020111219259](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20211020111219259.png)
+![image-20211020111219259](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20211020111219259.png)
 
 
 
@@ -268,19 +268,19 @@ public abstract class AbstractQueuedSynchronizer
 }
 ```
 
-![20210702094553986](C:\Users\Administrator\Desktop\图片\20210702094553986.png)
+![20210702094553986](https://raw.githubusercontent.com/xuhaoyao/images/master/img/20210702094553986.png)
 
 
 
 #### AQS同步队列的基本结构
 
-![image-20211020123140804](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20211020123140804.png)
+![image-20211020123140804](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20211020123140804.png)
 
 
 
 #### AQS内部体系架构
 
-![image-20211020121726386](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20211020121726386.png)
+![image-20211020121726386](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20211020121726386.png)
 
 
 
@@ -288,13 +288,13 @@ public abstract class AbstractQueuedSynchronizer
 
 Lock接口的实现类，基本都是通过【聚合】了一个【队列同步器】的子类完成线程访问控制的。
 
-![image-20211020123630070](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20211020123630070.png)
+![image-20211020123630070](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20211020123630070.png)
 
 
 
 #### 从最简单的lock方法看看公平和非公平
 
-![image-20211020124321085](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20211020124321085.png)
+![image-20211020124321085](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20211020124321085.png)
 
 
 
@@ -304,7 +304,7 @@ Lock接口的实现类，基本都是通过【聚合】了一个【队列同步�
 
 - 公平锁：讲究先来先到，线程在获取锁时，如果这个锁的等待队列中已经有线程在等待，那么当前线程就会进入等待队列中。
 - 非公平锁：不管是否有等待队列，如果可以获取锁，则立刻占有锁对象。也就是说队列的第一个排队线程在unpark()之后还是需要竞争锁（存在线程竞争的情况下）
-- ![image-20211020125612923](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20211020125612923.png)
+- ![image-20211020125612923](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20211020125612923.png)
 
 
 
@@ -490,7 +490,7 @@ private Node enq(final Node node) {
 
 双向链表中，**第一个节点为虚节点（也叫哨兵节点）**，其实并不存储任何信息，只是占位，真正的有数据的节点是从第二个节点开始的
 
-![image-20211020174954579](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20211020174954579.png)
+![image-20211020174954579](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20211020174954579.png)
 
 
 
@@ -584,7 +584,7 @@ private final boolean parkAndCheckInterrupt() {
 
 
 
-![image-20211020183112038](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20211020183112038.png)
+![image-20211020183112038](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20211020183112038.png)
 
 
 
@@ -669,19 +669,19 @@ if (p == head && tryAcquire(arg)) {
 }
 ```
 
-![image-20211020220738223](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20211020220738223.png)
+![image-20211020220738223](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20211020220738223.png)
 
 
 
-![image-20211020222334434](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20211020222334434.png)
+![image-20211020222334434](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20211020222334434.png)
 
 
 
-![image-20211020222607242](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20211020222607242.png)
+![image-20211020222607242](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20211020222607242.png)
 
 
 
-![image-20211020222802999](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20211020222802999.png)
+![image-20211020222802999](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20211020222802999.png)
 
 
 

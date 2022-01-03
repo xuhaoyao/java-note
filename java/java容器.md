@@ -343,7 +343,7 @@ TODO
 
 ### Map的实现类的结构
 
-![image-20210928162559003](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20210928162559003.png)
+![image-20210928162559003](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20210928162559003.png)
 
 **HashMap**：作为Map的主要实现类，线程不安全，效率高，可以存储null的key和value
 
@@ -366,7 +366,7 @@ TODO
 
 ### HashMap理解
 
-![image-20210928182059503](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20210928182059503.png)
+![image-20210928182059503](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20210928182059503.png)
 
 **key**：无序的，不可重复的，使用Set存储所有的key --> key所在的类要重写equals和hashCode
 
@@ -391,7 +391,7 @@ map.put(key,value);
 在不断的添加过程中，会涉及到扩容问题【超过threshold[capacity * load factor]】，默认的扩容方式：扩容为原来容量的2倍。并将原来的数据复制过来【entry的位置可能发生变化,看下面分析】
 ```
 
-![image-20210928183743938](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20210928183743938.png)
+![image-20210928183743938](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20210928183743938.png)
 
 #### 初始化方法
 
@@ -685,7 +685,7 @@ public V get(Object key) {
 7.在链表操作的时候,jdk8采用尾插法,这与jdk7是不同的【因为采用头插法多线程下可能导致闭环】
 ```
 
-![image-20210928183720267](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20210928183720267.png)
+![image-20210928183720267](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20210928183720267.png)
 
 
 
