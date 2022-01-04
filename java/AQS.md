@@ -474,9 +474,9 @@ private Node enq(final Node node) {
             if (compareAndSetHead(new Node()))
                 tail = head;
         } else {
-            node.prev = t;
+            node.prev = t;	//此处先把node的prev指针设置了,unLock的时候从尾部开始找没有被取消的结点,队列才能完整遍历
             if (compareAndSetTail(t, node)) {  //每次节点的入队,都是通过cas保证正确赋值,若赋值失败就重来
-                t.next = node;
+                t.next = node;	//若setTail成功但是还没有执行到这一步,unLock里面的代码可以去看看
                 return t;
             }
         }
@@ -521,6 +521,8 @@ final boolean acquireQueued(final Node node, int arg) {
                 failed = false;
                 return interrupted;
             }
+            //当前结点的前一个结点在这里被设置成-1,当前一个结点的状态是-1的时候,目前的结点才能睡
+            //可以看unlock()的代码,状态是-1的结点才有权力去唤醒它的后继结点
             if (shouldParkAfterFailedAcquire(p, node) &&	//看下面的注释【重要】
                 parkAndCheckInterrupt())	//线程将会在这里调用LockSupport.park阻塞住,等待唤醒
                 interrupted = true;
@@ -641,7 +643,8 @@ private void unparkSuccessor(Node node) {
     Node s = node.next;
     if (s == null || s.waitStatus > 0) {
         s = null;
-        for (Node t = tail; t != null && t != node; t = t.prev)
+  //为什么从tail开始找? 要找没有取消的同时为了保证能完整遍历整个队列,可以看看enq的代码,维护队列的时候不是原子操作,但是很巧妙
+        for (Node t = tail; t != null && t != node; t = t.prev)	
             if (t.waitStatus <= 0)
                 s = t;
     }
