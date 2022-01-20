@@ -37,6 +37,7 @@
       - [获取写入锁: scanAndLockForPut](#获取写入锁-scanandlockforput)
       - [扩容: rehash](#扩容-rehash)
       - [get 过程分析](#get-过程分析-1)
+      - [size操作](#size操作)
       - [疑点](#疑点)
       - [并发问题分析](#并发问题分析)
     - [Java8](#java8)
@@ -50,6 +51,7 @@
       - [helpTransfer](#helptransfer)
       - [get 过程分析](#get-过程分析-2)
       - [ForwardingNode---find](#forwardingnode---find)
+      - [size操作](#size操作-1)
 
 # java容器
 
@@ -1288,6 +1290,8 @@ private void rehash(HashEntry<K,V> node) {
 2. 槽中也是一个数组，根据 hash 找到数组中具体的位置
 3. 到这里是链表了，顺着链表进行查找即可
 
+get操作不会读到过期的值，因为根据Java内存模型的 happen before 原则， 对 volatile 字段的写入操作先于读操作，即使两个线程同时修改和读取 volatile 变量， get 操作也能拿到最新的值。 这是用 valatile替换锁的经典应用场景。 
+
 ```java
 public V get(Object key) {
     Segment<K,V> s; // manually integrate access methods to reduce overhead
@@ -1310,6 +1314,58 @@ public V get(Object key) {
     return null;
 }
 ```
+
+#### size操作
+
+​	如果要统计整个 ConcurrentHashMap 里元素的大小，必须统计所有 Segment 里元素大小求和。  为了使结果准确（可以想象一下，类加每个Segment的count, 期间 count可能发生改变）， 最安全的做法就是在统计 size的时候把 所有 segment锁住，但是这样效率太低下了。
+
+​	因为在累加 count 操作过程中， 之前累加过的 count 发生变化的几率非常小, 所以 Doug lea 采用的做法是 ：先尝试2次通过不加锁的方式求和，如果统计过程中，count发生了变化，再采用加锁的方式来求。
+
+​	如何判断容器发生了变化？**modCount**
+
+```java
+    public int size() {
+        // Try a few times to get accurate count. On failure due to
+        // continuous async changes in table, resort to locking.
+        final Segment<K,V>[] segments = this.segments;
+        int size;
+        boolean overflow; // true if size overflows 32 bits
+        long sum;         // sum of modCounts
+        long last = 0L;   // previous sum
+        int retries = -1; // first iteration isn't retry
+        try { 			//for循环实际上会跑三遍,但是第一次是先求出了sum, sum == last肯定false,因为这时候last还没有赋值
+            for (;;) {  //故跑三遍，实际上两次有效的判断 sum 是否等于 last
+                if (retries++ == RETRIES_BEFORE_LOCK) {
+                    for (int j = 0; j < segments.length; ++j)
+                        ensureSegment(j).lock(); // force creation
+                }
+                sum = 0L;
+                size = 0;
+                overflow = false;
+                for (int j = 0; j < segments.length; ++j) {
+                    Segment<K,V> seg = segmentAt(segments, j);
+                    if (seg != null) {
+                        sum += seg.modCount;
+                        int c = seg.count;
+                        if (c < 0 || (size += c) < 0)
+                            overflow = true;
+                    }
+                }
+                if (sum == last)
+                    break;
+                last = sum;
+            }
+        } finally {
+            if (retries > RETRIES_BEFORE_LOCK) {
+                for (int j = 0; j < segments.length; ++j)
+                    segmentAt(segments, j).unlock();
+            }
+        }
+        return overflow ? Integer.MAX_VALUE : size;
+    }
+```
+
+
 
 #### 疑点
 
@@ -1971,6 +2027,36 @@ public V get(Object key) {
                 }
             }
         }
+    }
+```
+
+#### size操作
+
+每次 put 完之后，会调用 addCount 方法记录size
+
+![image-20220120221422356](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20220120221422356.png)
+
+CounterCell是JDK8中用来统计ConcurrentHashMap中所有元素个数的，在统计ConcurentHashMap时，不能直接对ConcurrentHashMap对象进行加锁然后再去统计，因为这样会影响ConcurrentHashMap的put等操作的效率，在JDK8的实现中使用了CounterCell+baseCount来辅助进行统计，baseCount是ConcurrentHashMap中的一个属性，某个线程在调用ConcurrentHashMap对象的put操作时，会先通过CAS去修改baseCount的值，如果CAS修改成功，就计数成功，如果CAS修改失败，则会从CounterCell数组中随机选出一个CounterCell对象，然后利用CAS去修改CounterCell对象中的值，因为存在CounterCell数组，所以，当某个线程想要计数时，先尝试通过CAS去修改baseCount的值，如果没有修改成功，则从CounterCell数组中随机取出来一个CounterCell对象进行CAS计数，这样在计数时提高了效率。
+
+所以ConcurrentHashMap在统计元素个数时，就是baseCount加上所有CountCeller中的value值，所得的和就是所有的元素个数。然而，这样统计的结果好像并不准确？？
+
+```java
+	public int size() {
+        long n = sumCount();
+        return ((n < 0L) ? 0 :
+                (n > (long)Integer.MAX_VALUE) ? Integer.MAX_VALUE :
+                (int)n);
+    }
+    final long sumCount() {
+        CounterCell[] as = counterCells; CounterCell a;
+        long sum = baseCount;
+        if (as != null) {
+            for (int i = 0; i < as.length; ++i) {
+                if ((a = as[i]) != null)
+                    sum += a.value;
+            }
+        }
+        return sum;
     }
 ```
 
