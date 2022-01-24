@@ -1564,7 +1564,7 @@ final V putVal(K key, V value, boolean onlyIfAbsent) {
             if (binCount != 0) {
                 // 判断是否要将链表转换为红黑树，临界值和 HashMap 一样，也是 8
                 if (binCount >= TREEIFY_THRESHOLD)
-                    // 如果当前数组的长度小于 64，那么会选择进行数组扩容，而不是转换为红黑树
+                    // 下面这个方法如果当前数组的长度小于 64，那么会选择进行数组扩容，而不是转换为红黑树
                     treeifyBin(tab, i);
                 if (oldVal != null)
                     return oldVal;
