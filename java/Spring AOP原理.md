@@ -324,10 +324,6 @@ AbstractAutoProxyCreator
 
 容器中保存了组件的代理对象(这里是cglib增强后的对象)这个对象里面保存了详细信息(增强器,目标对象等)
 
-- 注意看ArrayList，然后是目标方法的顺序【逆序】
-
-<img src="https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20220124125509460.png" alt="image-20220124125509460" style="zoom:67%;" />
-
 1).CglibAopProxy中的静态内部类DynamicAdvisedInterceptor.intercept() 拦截目标方法的执行
 
 ![image-20220124125735482](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20220124125735482.png)
@@ -335,7 +331,10 @@ AbstractAutoProxyCreator
 2).根据ProxyFactory获取将要执行的目标方法【div】的拦截器链
 
 - List<Object> chain = this.advised.getInterceptorsAndDynamicInterceptionAdvice(method, targetClass);
-  - ![image-20220124134748674](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20220124134748674.png)
+  - 注意看ArrayList，然后是目标方法的顺序【逆序】
+  - 这里加了`@Around`的注解
+  - ![image-20220126142214907](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20220126142214907.png)
+  
 - 如果没有拦截器链【chain = null】，直接执行目标方法。
 
 **那么，拦截器链是什么?如何获取的？**
@@ -460,6 +459,21 @@ retVal = new CglibMethodInvocation(proxy, target, method, args, targetClass, cha
 	}
 ```
 
+### AspectJAroundAdvice
+
+```java
+	@Override
+	public Object invoke(MethodInvocation mi) throws Throwable {
+		if (!(mi instanceof ProxyMethodInvocation)) {
+			throw new IllegalStateException("MethodInvocation is not a Spring ProxyMethodInvocation: " + mi);
+		}
+		ProxyMethodInvocation pmi = (ProxyMethodInvocation) mi;
+		ProceedingJoinPoint pjp = lazyGetProceedingJoinPoint(pmi);
+		JoinPointMatch jpm = getJoinPointMatch(pmi);
+		return invokeAdviceMethod(pjp, jpm, null, null);
+	}
+```
+
 ### MethodBeforeAdviceInterceptor.invoke
 
 在目标方法执行前，执行@Before标注的方法。
@@ -502,3 +516,180 @@ if (this.currentInterceptorIndex == this.interceptorsAndDynamicMethodMatchers.si
              是:切面的通知方法,包装成增强器(Advisor);给业务逻辑组件创建一个代理对象
  5.执行目标方法
 ```
+
+
+
+## 8.Spring AOP 5的改动
+
+Spring 5.2.7.RELEASE之后，拦截器链改动了
+
+![image-20220126142548143](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20220126142548143.png)
+
+### 方法总览，与之前的没有变化，就是拦截器链的顺便变了
+
+```java
+	@Override
+	@Nullable
+	public Object proceed() throws Throwable {
+		// We start with an index of -1 and increment early.
+		if (this.currentInterceptorIndex == this.interceptorsAndDynamicMethodMatchers.size() - 1) {
+			return invokeJoinpoint();
+		}
+
+		Object interceptorOrInterceptionAdvice =
+				this.interceptorsAndDynamicMethodMatchers.get(++this.currentInterceptorIndex);
+		if (interceptorOrInterceptionAdvice instanceof InterceptorAndDynamicMethodMatcher) {
+			// Evaluate dynamic method matcher here: static part will already have
+			// been evaluated and found to match.
+			InterceptorAndDynamicMethodMatcher dm =
+					(InterceptorAndDynamicMethodMatcher) interceptorOrInterceptionAdvice;
+			Class<?> targetClass = (this.targetClass != null ? this.targetClass : this.method.getDeclaringClass());
+			if (dm.methodMatcher.matches(this.method, targetClass, this.arguments)) {
+				return dm.interceptor.invoke(this);
+			}
+			else {
+				// Dynamic matching failed.
+				// Skip this interceptor and invoke the next in the chain.
+				return proceed();
+			}
+		}
+		else {
+			// It's an interceptor, so we just invoke it: The pointcut will have
+			// been evaluated statically before this object was constructed.
+			return ((MethodInterceptor) interceptorOrInterceptionAdvice).invoke(this);
+		}
+	}
+```
+
+
+
+### AspectJAroundAdvice
+
+```java
+	@Override
+	public Object invoke(MethodInvocation mi) throws Throwable {
+		if (!(mi instanceof ProxyMethodInvocation)) {
+			throw new IllegalStateException("MethodInvocation is not a Spring ProxyMethodInvocation: " + mi);
+		}
+		ProxyMethodInvocation pmi = (ProxyMethodInvocation) mi;
+		ProceedingJoinPoint pjp = lazyGetProceedingJoinPoint(pmi);
+		JoinPointMatch jpm = getJoinPointMatch(pmi);
+		return invokeAdviceMethod(pjp, jpm, null, null);
+	}
+```
+
+```java
+    @Around("pointCut()")
+    public Object logAround(ProceedingJoinPoint jp) throws Throwable {
+        System.out.println("@Around环绕通知...开始");
+        Object retVal = jp.proceed();   //执行到这里然后继续调用拦截器链
+        System.out.println("@Around环绕通知...结束");
+        return retVal;
+    }
+```
+
+### MethodBeforeAdviceInterceptor
+
+```java
+	@Override
+	public Object invoke(MethodInvocation mi) throws Throwable {
+		this.advice.before(mi.getMethod(), mi.getArguments(), mi.getThis()); //执行@Before的方法
+		return mi.proceed();
+	}
+```
+
+### AspectJAfterAdvice
+
+```java
+	@Override
+	public Object invoke(MethodInvocation mi) throws Throwable {
+		try {
+			return mi.proceed();  
+		}
+		finally {
+			invokeAdviceMethod(getJoinPointMatch(), null, null);
+		}
+	}
+```
+
+### AfterReturningAdviceInterceptor
+
+```java
+	@Override
+	public Object invoke(MethodInvocation mi) throws Throwable {
+		Object retVal = mi.proceed();
+		this.advice.afterReturning(retVal, mi.getMethod(), mi.getArguments(), mi.getThis());
+		return retVal;
+	}
+```
+
+### AspectJAfterThrowingAdvice
+
+```java
+	@Override
+	public Object invoke(MethodInvocation mi) throws Throwable {
+		try {
+			return mi.proceed();
+		}
+		catch (Throwable ex) {
+			if (shouldInvokeOnThrowing(ex)) {
+				invokeAdviceMethod(getJoinPointMatch(), null, ex);
+			}
+			throw ex;
+		}
+	}
+```
+
+### 上面的拦截方法调用之后，执行目标方法
+
+```java
+// We start with an index of -1 and increment early.
+if (this.currentInterceptorIndex == this.interceptorsAndDynamicMethodMatchers.size() - 1) {
+    return invokeJoinpoint();
+}
+```
+
+## 9.AOP4和5的执行顺序对比
+
+![image-20220126143711171](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20220126143711171.png)
+
+### Spring5的调用顺序
+
+Spring4没必要看了，知道一下就可
+
+```java
+around(){
+    doSome();
+    {before(); after(); afterReturning(); afterThrowing();}
+    doSome();  //若有异常,不会执行,除非自己捕捉异常
+}
+before(){
+    do@Before();
+    return mi.proceed();
+}
+after(){
+    try{
+        return mi.proceed();
+    }
+    finally{
+        do@Atfer();
+    }
+}
+afterReturning(){
+    retVal = mi.proceed();
+    do@AtferReturning();
+    return retVal;
+}
+afterThrowing() throws Throwable{
+    try{
+        return mi.proceed();
+    }
+    catch(Throwable t){
+        do@AfterThrowing();
+        throw t;
+    }
+}
+```
+
+
+
