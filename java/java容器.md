@@ -725,6 +725,11 @@ public V get(Object key) {
 
 #### put 过程分析
 
+put第一个位置的时候，有一个设计上的小技巧：
+
+- 由于HashMap用链表或者红黑树来解决hash冲突的,那么遍历前就需要判断这个Node上是链表还是红黑树，但是第一个Node是没必要判断的，直接比对Node的key是否一致即可，若不一致的话，再去判断后面的Node，这时候就需要看是红黑树还是链表了
+- 为什么要这样设计呢？可能的原因就是HashMap的作者认为他的hash函数设计得足够好，大部分情况下都不会有hash冲突，因此每次只需要判断第一个Node就足够了，也是提升了一点点性能吧。
+
 ```java
 public V put(K key, V value) {
     return putVal(hash(key), key, value, false, true);
