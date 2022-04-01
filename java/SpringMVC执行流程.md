@@ -1,6 +1,6 @@
 # SpringMVC执行流程
 
-<img src="C:/Users/Administrator/AppData/Roaming/Typora/typora-user-images/image-20220310193112056.png" alt="image-20220310193112056" style="zoom:150%;" />
+<img src="https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20220310193112056.png" alt="image-20220310193112056" style="zoom:150%;" />
 
 1、浏览器提交请求到**中央调度器（DispatcherServlet）**
 
@@ -32,7 +32,7 @@
 
 ## SpirngMVC中的HandlerAdapter
 
-![image-20220310213115086](C:/Users/Administrator/AppData/Roaming/Typora/typora-user-images/image-20220310213115086.png)
+![image-20220401193728104](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20220401193728104.png)
 
 每一个Controller可能有不同的接口去处理我们的url请求，比如HttpServlet用service接收，实现了Controller接口的子类用handleRequest接收,而@RestController中的@RequestMapping接收的请求，又是调用handleInternal来处理请求的。
 
