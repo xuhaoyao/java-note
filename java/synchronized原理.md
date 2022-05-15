@@ -144,3 +144,9 @@ OnDeck Thread获取到锁资源后会变为Owner Thread。无法获得锁 的OnD
 ### WaitSet
 
 如果Owner线程被Object.wait()方法阻塞，就转移到WaitSet队列 中，直到某个时刻通过Object.notify()或者Object.notifyAll()唤 醒，该线程就会重新进入EntryList中。
+
+
+
+
+
+在这里改动，会怎样
