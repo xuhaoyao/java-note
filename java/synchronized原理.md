@@ -144,3 +144,31 @@ OnDeck Thread获取到锁资源后会变为Owner Thread。无法获得锁 的OnD
 ### WaitSet
 
 如果Owner线程被Object.wait()方法阻塞，就转移到WaitSet队列 中，直到某个时刻通过Object.notify()或者Object.notifyAll()唤 醒，该线程就会重新进入EntryList中。
+
+
+
+## wait原理
+
+对象的wait()方法的核心原理大致如下:
+
+(1)当线程调用了locko(某个同步锁对象)的wait()方法后， JVM会将当前线程加入locko监视器的WaitSet(等待集)，等待被其他 线程唤醒。
+
+(2)当前线程会释放locko对象监视器的Owner权利，让其他线程 可以抢夺locko对象的监视器。
+
+(3)让当前线程等待，其状态变成WAITING。
+
+
+
+## notify原理
+
+对象的notify()或者notifyAll()方法的核心原理大致如下:
+
+(1)当线程调用了locko(某个同步锁对象)的notify()方法 后，JVM会唤醒locko监视器WaitSet中的第一条等待线程。
+
+(2)当线程调用了locko的notifyAll()方法后，JVM会唤醒locko 监视器WaitSet中的所有等待线程。
+
+(3)等待线程被唤醒后，会从监视器的WaitSet移动到 EntryList，线程具备了排队抢夺监视器Owner权利的资格，其状态从 WAITING变成BLOCKED。
+
+(4)EntryList中的线程抢夺到监视器的Owner权利之后，线程的 状态从BLOCKED变成Runnable，具备重新执行的资格。
+
+- 当lock调用notify时，locko还是owner，当locko的run方法执行完毕，EntryList中的线程才开始抢夺监视器的Owner权利
