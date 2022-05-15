@@ -99,9 +99,9 @@ JVM中每个对象都会有一个监视器，监视器和对象一起创建、�
 
 在Hotspot虚拟机中，监视器是由C++类ObjectMonitor实现的， ObjectMonitor类定义在ObjectMonitor.hpp文件中，其构造器代码大 致如下:
 
-![image-20220515160924593](/Users/bytedance/Library/Application Support/typora-user-images/image-20220515160924593.png)
+![image](https://user-images.githubusercontent.com/56396192/168463934-58a349cb-2b44-4de1-be96-d39580a4774f.png)
 
-![image-20220515160935529](/Users/bytedance/Library/Application Support/typora-user-images/image-20220515160935529.png)
+![image](https://user-images.githubusercontent.com/56396192/168463945-81b7eea8-9ef6-437c-9558-5df67771750f.png)
 
 ObjectMonitor的Owner(_owner)、WaitSet(_WaitSet)、 Cxq(_cxq)、EntryList(_EntryList)这几个属性比较关键。 ObjectMonitor的WaitSet、Cxq、EntryList这三个队列存放抢夺重量 级锁的线程，而ObjectMonitor的Owner所指向的线程即为获得锁的线 程。
 
@@ -113,7 +113,7 @@ Cxq、EntryList、WaitSet这三个队列的说明如下:
 
 (3)WaitSet:某个拥有ObjectMonitor的线程在调用 Object.wait()方法之后将被阻塞，然后该线程将被放置在WaitSet链 表中。
 
-![image-20220515161044685](/Users/bytedance/Library/Application Support/typora-user-images/image-20220515161044685.png)
+![image](https://user-images.githubusercontent.com/56396192/168463959-643397fe-462c-43b7-a1e8-052ac8d26cc3.png)
 
 ### cxq
 
