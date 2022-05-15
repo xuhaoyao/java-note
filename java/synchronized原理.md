@@ -1,5 +1,7 @@
 # synchronized原理
 
+java高并发核心编程：卷2，有对锁升级详细的代码验证，遗忘的话可以再去翻一翻
+
 ## 锁升级
 
 ![image-20220317155000087](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20220317155000087.png)
@@ -18,10 +20,11 @@ HotSpot的作者经过研究发现，大多数时候，锁都是不存在竞争�
 
 - 如果一致，那么此时线程就获取到了锁，就不需要使用CAS来加锁和解锁
 - 如果不一致，比如现在是线程2来竞争锁，而偏向锁不会主动释放，因此这时候Mark Word中存储的是线程1的Thread ID,那么需要通过线程1的Thread ID查看线程1是否存活
-  - 如果没有存活，那么锁对象被重置为无锁状态，线程2就可以竞争将其设置为偏向锁
+  - 如果没有存活，那么锁对象被重置为无锁状态，线程2就可以竞争将其设置为**轻量级锁**
   - 如果存活，那么会去查找线程1的栈帧信息
     - **如果线程1现在还持有这个锁对象，那么暂停当前线程1，撤销偏向锁（需要等待全局安全点，这个时间点没有正在执行的字节码），升级为轻量级锁**
-    - 如果线程1不再使用这个锁，那么将锁置为无锁状态，重新偏向新的线程。
+    - 如果线程1不再使用这个锁，那么将锁置为无锁状态，线程2可以竞争将其设置为**轻量级锁**
+- **一个原则：**偏向锁在一个对象上，只能被一个线程拿到，当另外的线程来拿这个对象的锁时，偏向锁的偏向模式就失效了，此后就在这个对象上就没有偏向锁了，即对象的偏向锁的那个标志位为0
 
 （2）轻量级锁
 
@@ -38,7 +41,11 @@ HotSpot的作者经过研究发现，大多数时候，锁都是不存在竞争�
   - **如果出现两条以上的线程来竞争锁，那么这个时候轻量级锁就会升级为重量级锁。**
   - 重量级锁把除了拥有锁的线程以外的都阻塞，防止了CPU空转。
 
-> 为了避免无用的自旋，轻量级锁一旦膨胀为重量级锁就不会再降级为轻量级锁了；偏向锁升级为轻量级锁也不能再降级为偏向锁。一句话就是锁可以升级不可以降级，但是偏向锁状态可以被重置为无锁状态。
+> 注意：为了避免无用的自旋，轻量级锁一旦膨胀为重量级锁就不会再降级为轻量级锁了；偏向锁升级为轻量级锁也不能再降级为偏向锁。
+>
+> - 这句话是在什么场景下说的？我觉得是：抢锁的时候
+>   - 通过jol的测试验证，当锁释放的时候，偏向锁不改变对象头（占着锁不放），轻量级锁和重量级锁，都变成无锁状态
+>   - 即，当一个重量级锁解锁之后，对象现在是无锁状态，下一次线程来拿锁，锁可以变成轻量级锁
 
 **轻量级锁的解锁过程**
 
@@ -77,3 +84,63 @@ public String concatString(String a,String b){
 如果一系列的连续操作都是对同一个对象反复加锁和解锁，甚至加锁都是出现在循环体中，那即使没有线程竞争，频繁地进行互斥同步操作也会导致不必要的性能损耗。
 
 比如上面的代码，可以把加锁范围扩展到第一个append操作之前，直到最后一个append操作之后，这样只需要一次加锁
+
+
+
+## 重量级锁核心原理
+
+JVM中每个对象都会有一个监视器，监视器和对象一起创建、销 毁。监视器相当于一个用来监视这些线程进入的特殊房间，其义务是 保证(同一时间)只有一个线程可以访问被保护的临界区代码块。
+
+ 本质上，监视器是一种同步工具，也可以说是一种同步机制，主要特点是:
+
+(1)同步。监视器所保护的临界区代码是互斥地执行的。一个监 视器是一个运行许可，任一线程进入临界区代码都需要获得这个许 可，离开时把许可归还。
+
+(2)协作。监视器提供Signal机制，允许正持有许可的线程暂时 放弃许可进入阻塞等待状态，等待其他线程发送Signal去唤醒;其他 拥有许可的线程可以发送Signal，唤醒正在阻塞等待的线程，让它可 以重新获得许可并启动执行。
+
+在Hotspot虚拟机中，监视器是由C++类ObjectMonitor实现的， ObjectMonitor类定义在ObjectMonitor.hpp文件中，其构造器代码大 致如下:
+
+![image-20220515160924593](/Users/bytedance/Library/Application Support/typora-user-images/image-20220515160924593.png)
+
+![image-20220515160935529](/Users/bytedance/Library/Application Support/typora-user-images/image-20220515160935529.png)
+
+ObjectMonitor的Owner(_owner)、WaitSet(_WaitSet)、 Cxq(_cxq)、EntryList(_EntryList)这几个属性比较关键。 ObjectMonitor的WaitSet、Cxq、EntryList这三个队列存放抢夺重量 级锁的线程，而ObjectMonitor的Owner所指向的线程即为获得锁的线 程。
+
+Cxq、EntryList、WaitSet这三个队列的说明如下:
+
+(1)Cxq:竞争队列(Contention Queue)，所有请求锁的线程 首先被放在这个竞争队列中。
+
+(2)EntryList:Cxq中那些有资格成为候选资源的线程被移动到 EntryList中。
+
+(3)WaitSet:某个拥有ObjectMonitor的线程在调用 Object.wait()方法之后将被阻塞，然后该线程将被放置在WaitSet链 表中。
+
+![image-20220515161044685](/Users/bytedance/Library/Application Support/typora-user-images/image-20220515161044685.png)
+
+### cxq
+
+Cxq并不是一个真正的队列，只是一个虚拟队列，原因在于Cxq是 由Node及其next指针逻辑构成的，并不存在一个队列的数据结构。每 次新加入Node会在Cxq的队头进行，通过CAS改变第一个节点的指针为 新增节点，同时设置新增节点的next指向后续节点;从Cxq取得元素 时，会从队尾获取。显然，Cxq结构是一个无锁结构。
+
+因为只有Owner线程才能从队尾取元素，即线程出列操作无争用， 当然也就避免了CAS的ABA问题.
+
+在线程进入Cxq前，抢锁线程会先尝试通过CAS自旋获取锁，如果 获取不到，就进入Cxq队列，这明显对于已经进入Cxq队列的线程是不 公平的。所以，synchronized同步块所使用的重量级锁是不公平锁。
+
+
+
+### EntryList
+
+EntryList与Cxq在逻辑上都属于等待队列。Cxq会被线程并发访 问，为了降低对Cxq队尾的争用，而建立EntryList。在Owner线程释放 锁时，JVM会从Cxq中迁移线程到EntryList，并会指定EntryList中的 某个线程(一般为Head)为OnDeck Thread(Ready Thread)。 EntryList中的线程作为候选竞争线程而存在。
+
+
+
+### OnDeck Thread与Owner Thread
+
+JVM不直接把锁传递给Owner Thread，而是把锁竞争的权利交给 OnDeck Thread，OnDeck需要重新竞争锁。这样虽然牺牲了一些公平 性，但是能极大地提升系统的吞吐量，在JVM中，也把这种选择行为称 为“竞争切换”。
+
+OnDeck Thread获取到锁资源后会变为Owner Thread。无法获得锁 的OnDeck Thread则会依然留在EntryList中，考虑到公平性，OnDeck Thread在EntryList中的位置不发生变化(依然在队头)。
+
+在OnDeck Thread成为Owner的过程中，还有一个不公平的事情， 就是后来的新抢锁线程可能直接通过CAS自旋成为Owner而抢到锁。
+
+
+
+### WaitSet
+
+如果Owner线程被Object.wait()方法阻塞，就转移到WaitSet队列 中，直到某个时刻通过Object.notify()或者Object.notifyAll()唤 醒，该线程就会重新进入EntryList中。
