@@ -147,6 +147,11 @@ OnDeck Thread获取到锁资源后会变为Owner Thread。无法获得锁 的OnD
 
 
 
+<<<<<<< HEAD
+
+
+在这里改动，会怎样
+=======
 ## wait原理
 
 对象的wait()方法的核心原理大致如下:
