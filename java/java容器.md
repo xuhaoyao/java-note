@@ -763,7 +763,7 @@ final V putVal(int hash, K key, V value, boolean onlyIfAbsent,
                 // 插入到链表的最后面(Java7 是插入到链表的最前面)
                 if ((e = p.next) == null) {
                     p.next = newNode(hash, key, value, null);
-                    // TREEIFY_THRESHOLD 为 8，所以，插入到链表后，如果新插入的值是链表中的第 8 个
+                    // TREEIFY_THRESHOLD 为 8，所以，插入到链表后，如果新插入的值是链表中的第 9 个
                     // 会触发下面的 treeifyBin，【tab.len<64的时候resize(),tab.len>=64的时候将此链表转成红黑树】
                     if (binCount >= TREEIFY_THRESHOLD - 1) // -1 for 1st
                         treeifyBin(tab, hash);
