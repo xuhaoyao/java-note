@@ -1,4 +1,14 @@
 # SpringBoot自动装配原理
+
+约定大于配置：
+
+- 按约定编程，是一种软件设计范式，减少软件开发人员做决定的数量，获得简化的好处
+- 约定好了Maven的结构目录，resources存放资源文件，src-main-java存放源代码，target存放编译生成的类
+- 约定配置文件的后缀是properties或yml
+- 约定好一些场景下的默认实现，比如要起一个Web应用，就需要Tomcat，那么引入web相关的starter即可，SpringBoot默认帮我们内嵌好一个Tomcat，装配好Spring MVC
+
+
+
 - [SpringBoot自动装配原理](#springboot自动装配原理)
   - [自动装配的加速](#自动装配的加速)
     - [按需加载--条件装配](#按需加载--条件装配)
@@ -106,7 +116,7 @@ public class AutoConfigurationImportSelector implements ...{
 ![image-20220128161558582](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20220128161558582.png)
 
 ```
-getCandidateConfigurations方法利用工厂加载得到所有的组件
+getCandidateConfigurations方法利用工厂加载得到所有的组件【SpringFactoriesLoader】
 	Map<String, List<String>> loadSpringFactories
 从META-INF/spring.factories位置来加载一个文件
 	默认扫描当前系统里面【所有】META-INF/spring.factories位置的文件
