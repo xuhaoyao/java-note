@@ -112,3 +112,117 @@ typedef struct zset{
 - 内存占用情况？
   - 跳跃表每个节点包含的层级平均是1/(1−*p*)，p在Redis里面设置成了0.25,故每个节点平均1.33个指针
   - 而红黑树有左孩子和右孩子，包含两个指针
+
+
+
+## 设计跳表
+
+```java
+public class Skiplist {
+
+        private static final int MAX_LEVEL = 32;
+        private static final double P_FACTOR = 0.25;
+        private static final Random random = new Random();
+
+        private int level;
+        private final SkipListNode head;
+
+        public Skiplist() {
+            this.head = new SkipListNode(0,MAX_LEVEL);
+            this.level = 0;
+        }
+
+        public boolean search(int target) {
+            SkipListNode cur = this.head;
+            for(int i = level - 1;i >= 0;i--){
+                /* 找到第 i 层小于且最接近 target 的元素*/
+                while(cur.forward[i] != null && cur.forward[i].val < target)
+                    cur = cur.forward[i];
+            }
+            cur = cur.forward[0];
+            return cur != null && cur.val == target;
+        }
+
+        /**
+         * 往跳表中插入节点：
+         *  每次插入的节点的期望层数为 1 / (1 - p),1.33
+         *  即一个节点，大概有1.33层
+         *  从跳表的当前的最大层数 level 层开始查找，在当前层水平地逐个比较直至当前节点的下一个节点大于等于目标节点，
+         *  然后移动至下一层进行查找重复这个过程直至到达第 1 层。
+         *  设新加入的节点为 newNode，需要计算出此次节点插入的层数 lv，如果 level 小于 lv，则同时需要更新 level。
+         *  用数组 update 保存每一层查找的最后一个节点(小于num)，第 i 层最后的节点为 update[i]。
+         *  将 newNode 的后续节点指向 update[i] 的下一个节点，同时更新 update[i] 的后续节点为 newNode
+         */
+        public void add(int num) {
+            SkipListNode[] update = new SkipListNode[MAX_LEVEL];
+            Arrays.fill(update,head);
+            SkipListNode cur = this.head;
+            for(int i = level - 1;i >= 0;i--){
+                /* 找到第 i 层小于且最接近 num 的元素*/
+                while (cur.forward[i] != null && cur.forward[i].val < num)
+                    cur = cur.forward[i];
+                update[i] = cur;
+            }
+            int lv = randomLevel();
+            level = Math.max(level,lv);
+            SkipListNode newNode = new SkipListNode(num,lv);
+            for(int i = 0;i < lv;i++){
+                newNode.forward[i] = update[i].forward[i];
+                update[i].forward[i] = newNode;
+            }
+        }
+
+        /**
+         * 首先我们需要查找当前元素是否存在跳表中。从跳表的当前的最大层数 level 层开始查找，
+         * 在当前层水平地逐个比较直至当前节点的下一个节点大于等于目标节点，
+         * 然后移动至下一层进行查找，重复这个过程直至到达第 1 层。
+         * 如果第 1 层的下一个节点不等于 num 时，则表示当前元素不存在直接返回。
+         * 用数组 update 保存每一层查找的最后一个节点，第 i 层最后的节点为 update[i]。
+         * 此时第 i 层的下一个节点的值为 num，则我们需要将其从跳表中将其删除。
+         * 由于第 i 层的以 p 的概率出现在第 i+1 层，因此我们应当从第 1 层开始往上进行更新，
+         * 将 num 从 update[i] 的下一跳中删除，
+         * 即更新 update[i] 的后续节点，直到当前层的链表中没有出现 num 的节点为止。
+         * 最后我们还需要更新跳表中当前的最大层数 level。
+         */
+        public boolean erase(int num) {
+            SkipListNode[] update = new SkipListNode[MAX_LEVEL];
+            Arrays.fill(update,head);
+            SkipListNode cur = this.head;
+            for(int i = level - 1;i >= 0;i--){
+                /* 找到第 i 层小于且最接近 num 的元素*/
+                while (cur.forward[i] != null && cur.forward[i].val < num)
+                    cur = cur.forward[i];
+                update[i] = cur;
+            }
+            cur = cur.forward[0];
+            if(cur == null || cur.val != num) return false;
+            for(int i = 0;i < level;i++){
+                /* 节点的层数由下往上，如果遇到第一个不等的话，那么说明被删除节点的层数已经遍历完了，即删完了 */
+                if(update[i].forward[i] != cur) break;
+                update[i].forward[i] = cur.forward[i];
+            }
+            while(level > 1 && head.forward[level - 1] == null)
+                    level--;
+            return true;
+        }
+
+        private int randomLevel(){
+            // 幂次定律，跳表的期望层数为 1 / (1 - p)
+            // redis中 p=0.25 ,跳表期望层数为1.33
+            int level = 1;
+            while(random.nextDouble() < P_FACTOR && level < MAX_LEVEL)
+                level++;
+            return level;
+        }
+
+        static class SkipListNode{
+            int val;
+            SkipListNode[] forward;
+            SkipListNode(int val,int level){
+                this.val = val;
+                this.forward = new SkipListNode[level];
+            }
+        }
+    }
+```
+
