@@ -288,6 +288,49 @@ MySQL自带的引擎是MyISAM，它不支持事务，而InnoDB 引擎就是通�
 
 
 
+### MySQL怎么知道binlog是完整的?
+
+一个事务的binlog是有完整格式的：
+
+- statement格式的binlog，最后会有COMMIT；
+  - ![image-20220724115143764](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20220724115143764.png)
+
+- row格式的binlog，最后会有一个XID event。
+  - ![image-20220724115153862](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20220724115153862.png)
+
+另外，在MySQL 5.6.2版本以后，还引入了**binlog-checksum**参数【校验和】，用来验证binlog内容的正确性。对于binlog日志由于磁盘原因，可能会在日志中间出错的情况，MySQL可以通过校验checksum的结果来发现。所以，MySQL还是有办法验证事务binlog的完整性的。
+
+
+
+### redo log 和 binlog是怎么关联起来的?
+
+它们有一个共同的数据字段，叫XID。崩溃恢复的时候，会按顺序扫描redo log：
+
+- 如果碰到既有prepare、又有commit的redo log，就直接提交；
+- 如果碰到只有parepare、而没有commit的redo log，就拿着XID去binlog找对应的事务。
+
+
+
+### 处于prepare阶段的redo log加上完整binlog，重启就能恢复，MySQL为什么要这么设计?
+
+回答：其实，这个问题还是跟我们在反证法中说到的数据与备份的一致性有关。在时刻B，也就是binlog写完以后MySQL发生崩溃，这时候binlog已经写入了，之后就会被从库（或者用这个binlog恢复出来的库）使用。
+
+所以，在主库上也要提交这个事务。采用这个策略，主库和备库的数据就保证了一致性。
+
+
+
+### 如果这样的话，为什么还要两阶段提交呢？干脆先redo log写完，再写binlog。崩溃恢复的时候，必须得两个日志都完整才可以。是不是一样的逻辑？
+
+回答：其实，两阶段提交是经典的分布式系统问题，并不是MySQL独有的。
+
+如果必须要举一个场景，来说明这么做的必要性的话，那就是事务的持久性问题。
+
+对于InnoDB引擎来说，如果redo log提交完成了，事务就不能回滚（如果这还允许回滚，就可能覆盖掉别的事务的更新）。而如果redo log直接提交，然后binlog写入的时候失败，InnoDB又回滚不了，数据和binlog日志又不一致了。
+
+两阶段提交就是为了给所有人一个机会，当每个人都说“我ok”的时候，再一起提交。
+
+
+
 ### 不引入两个日志，也就没有两阶段提交的必要了。只用binlog来支持崩溃恢复，又能支持归档，不就可以了？
 
 意思是，只保留binlog，然后可以把提交流程改成这样：… -> “数据更新到内存” -> “写 binlog” -> “提交事务”，是不是也可以提供崩溃恢复的能力？
@@ -370,26 +413,6 @@ redo log太小的话，会导致很快就被写满，然后不得不强行刷red
    b. 否则，回滚事务。
 
 这里，时刻B发生crash对应的就是2(a)的情况，崩溃恢复过程中事务会被提交。
-
-#### MySQL怎么知道binlog是完整的?
-
-一个事务的binlog是有完整格式的：
-
-- statement格式的binlog，最后会有COMMIT；
-  - ![image-20220724115143764](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20220724115143764.png)
-
-- row格式的binlog，最后会有一个XID event。
-  - ![image-20220724115153862](https://raw.githubusercontent.com/xuhaoyao/images/master/img/image-20220724115153862.png)
-
-
-另外，在MySQL 5.6.2版本以后，还引入了**binlog-checksum**参数【校验和】，用来验证binlog内容的正确性。对于binlog日志由于磁盘原因，可能会在日志中间出错的情况，MySQL可以通过校验checksum的结果来发现。所以，MySQL还是有办法验证事务binlog的完整性的。
-
-### redo log 和 binlog是怎么关联起来的?
-
-它们有一个共同的数据字段，叫XID。崩溃恢复的时候，会按顺序扫描redo log：
-
-- 如果碰到既有prepare、又有commit的redo log，就直接提交；
-- 如果碰到只有parepare、而没有commit的redo log，就拿着XID去binlog找对应的事务。
 
 
 
