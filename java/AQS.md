@@ -688,3 +688,55 @@ if (p == head && tryAcquire(arg)) {
 
 
 
+### AQS底层为什么用双向链表？
+
+`The "prev" links (not used in original CLH locks), are mainly needed to handle cancellation`
+
+- Doug Lea在AbstractQueuedSynchronizer的注释中简略的提了这么一句话，即双向链表主要用来处理节点取消的情况
+
+双向链表的特点，首先它有两个指针，prev指向前面的节点，next指向后面的节点，双向链表它可以支持常量级别的时间复杂度下去找到前驱节点。
+
+AQS使用双向链表有以下几个原因：
+
+一、没有竞争到锁，线程加入到阻塞队列，并且阻塞等待的一个前提是：当前线程所在节点的前驱节点是一个正常的状态（SIGNAL）
+
+- 为了避免链表里面存在异常状态的节点（CANCELLED），导致无法唤醒后续线程的问题
+- 所以线程在阻塞之前需要去判断前驱节点的一个状态，要找到一个SIGNAL状态的前驱节点才能进行阻塞`LockSupport.park(this);`
+
+```java
+		//																									前驱节点		当前节点
+    private static boolean shouldParkAfterFailedAcquire(Node pred, Node node) {
+        int ws = pred.waitStatus;
+        if (ws == Node.SIGNAL)
+            /*
+             * This node has already set status asking a release
+             * to signal it, so it can safely park.
+             */
+            return true;
+        if (ws > 0) {
+            /*
+             * Predecessor was cancelled. Skip over predecessors and
+             * indicate retry.
+             */
+            do {
+              //双向链表，可以快速剔除掉（取消状态）的节点，单向链表做不到这一点
+                node.prev = pred = pred.prev;
+            } while (pred.waitStatus > 0);
+            pred.next = node;
+        } else {
+            /*
+             * waitStatus must be 0 or PROPAGATE.  Indicate that we
+             * need a signal, but don't park yet.  Caller will need to
+             * retry to make sure it cannot acquire before parking.
+             */
+            compareAndSetWaitStatus(pred, ws, Node.SIGNAL);
+        }
+        return false;
+    }
+```
+
+二、在Lock接口里面，有一个可以中断锁的方法`lockInterruptibly`
+
+- 处于锁阻塞的线程是允许被中断的，也就是说，没有竞争到锁的线程加入到同步队列等待以后，是允许被外部线程通过`interrupt`方法去触发唤醒并且中断的，而这个时候被中断的线程的状态会修改成`CANCELLED`，被标记为`CANCELLED`状态的线程是不需要去竞争锁的，但是它仍然会存在于整个双向链表里面，意味着后续的锁的竞争中需要把这个节点从链表里面去移除
+  - 移除动作是一个懒移除的过程，若当前线程需要park，发现它前驱节点是CANCELLED的话，就会移除
+  - 若是单链表，需要从Head开始找到前驱节点，再判断状态，想一想就知道效率不高
