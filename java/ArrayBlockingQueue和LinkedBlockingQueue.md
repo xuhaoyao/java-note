@@ -30,6 +30,63 @@ public class ArrayBlockingQueue<E> extends AbstractQueue<E>
     private final Condition notFull;
 
 }
+
+    public void put(E e) throws InterruptedException {
+        checkNotNull(e);
+        final ReentrantLock lock = this.lock;
+        lock.lockInterruptibly();
+        try {
+            while (count == items.length)
+                notFull.await();
+            enqueue(e);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+/*
+	这里count的加和减，没有用锁来控，但它做到了线程安全
+		原因在于每次我们put的时候，只能有一个线程去put（因为有putLock这个锁），那么只要现在容量还没有到达上限，就可以put了
+*/
+        private void enqueue(E x) {
+            // assert lock.getHoldCount() == 1;
+            // assert items[putIndex] == null;
+            final Object[] items = this.items;
+            items[putIndex] = x;
+            if (++putIndex == items.length)
+                putIndex = 0;
+            count++;
+            notEmpty.signal();
+        }
+
+
+    public E take() throws InterruptedException {
+        final ReentrantLock lock = this.lock;
+        lock.lockInterruptibly();
+        try {
+            while (count == 0)
+                notEmpty.await();
+            return dequeue();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+        private E dequeue() {
+            // assert lock.getHoldCount() == 1;
+            // assert items[takeIndex] != null;
+            final Object[] items = this.items;
+            @SuppressWarnings("unchecked")
+            E x = (E) items[takeIndex];
+            items[takeIndex] = null;
+            if (++takeIndex == items.length)
+                takeIndex = 0;
+            count--;
+            if (itrs != null)
+                itrs.elementDequeued();
+            notFull.signal();
+            return x;
+        }
 ```
 
 
@@ -37,8 +94,19 @@ public class ArrayBlockingQueue<E> extends AbstractQueue<E>
 **LinkedBlockingQueue对于生产者端和消费者端分别采用了独立的锁来控制数据同步**
 这也意味着在高并发的情况下生产者和消费者可以并行地操作队列中的数据，以此来提高整个队列的并发性能。
 
-- 这里count的加和减，没有用锁来控，但它做到了线程安全
-  - 原因在于每次我们put的时候，只能有一个线程去put（因为有putLock这个锁），那么只要现在容量还没有到达上限，就可以put了
+- put和take是可中断的锁
+- offer和poll不是可中断的。
+
+```java
+    public LinkedBlockingQueue(int capacity) {
+        if (capacity <= 0) throw new IllegalArgumentException();
+        this.capacity = capacity;
+        last = head = new Node<E>(null);
+    }
+// 从构造函数看,是有傀儡节点的
+```
+
+
 
 ```java
 public class LinkedBlockingQueue<E> extends AbstractQueue<E>
@@ -104,9 +172,72 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
         } finally {
             putLock.unlock();
         }
+        // c = count.getAndIncrement();是之前的值,说明现在队列有元素了,可以给消费者拿,即not empty
         if (c == 0)
             signalNotEmpty();
     }
+    
+        private void enqueue(Node<E> node) {
+            // assert putLock.isHeldByCurrentThread();
+            // assert last.next == null;
+            last = last.next = node;
+        }
+    
+        private void signalNotEmpty() {
+            final ReentrantLock takeLock = this.takeLock;
+            takeLock.lock();
+            try {
+                notEmpty.signal();
+            } finally {
+                takeLock.unlock();
+            }
+        }
+    
+    
+    public E take() throws InterruptedException {
+        E x;
+        int c = -1;
+        final AtomicInteger count = this.count;
+        final ReentrantLock takeLock = this.takeLock;
+        takeLock.lockInterruptibly();
+        try {
+            while (count.get() == 0) {
+                notEmpty.await();
+            }
+            x = dequeue();
+            c = count.getAndDecrement();
+            if (c > 1)
+                notEmpty.signal();
+        } finally {
+            takeLock.unlock();
+        }
+        // c = count.getAndDecrement();是之前的值,为满容量,说明现在不满,生产者可以继续生产了, 即 not full
+        if (c == capacity)
+            signalNotFull();
+        return x;
+    }
+
+        private E dequeue() {
+            // assert takeLock.isHeldByCurrentThread();
+            // assert head.item == null;
+            Node<E> h = head;
+            Node<E> first = h.next;
+            h.next = h; // help GC
+            head = first;
+            E x = first.item;
+            first.item = null;
+            return x;
+        }
+    
+        private void signalNotFull() {
+            final ReentrantLock putLock = this.putLock;
+            putLock.lock();
+            try {
+                notFull.signal();
+            } finally {
+                putLock.unlock();
+            }
+        }
  
 }
 
